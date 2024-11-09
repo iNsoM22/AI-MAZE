@@ -8,14 +8,14 @@ class Maze:
     RIGHT = 4
 
     def __init__(self, dimensions) -> None:
-        self.dimensions = dimensions
+        self.height, self.width = dimensions
         self.doors = []
         self.creator()
 
     def creator(self):
         # First Create a 2D Array with all elements as False/Zero
-        visited = [[0 for _ in range(self.dimensions[1])]
-                   for _ in range(self.dimensions[0])]
+        visited = [[0 for _ in range(self.width)]
+                   for _ in range(self.height)]
         choices = [self.UP, self.LEFT, self.DOWN, self.RIGHT]
 
         # Now Use the DFS Algorithm to iterate and create a Maze
@@ -44,9 +44,9 @@ class Maze:
                                 stack.append((x, y, x - 1, y))
 
                         case self.DOWN:
-                            if y < self.dimensions[1] - 1 and not visited[x][y + 1]:
+                            if y < self.width - 1 and not visited[x][y + 1]:
                                 stack.append((x, y, x, y + 1))
 
                         case self.RIGHT:
-                            if x < self.dimensions[0] - 1 and not visited[x + 1][y]:
+                            if x < self.height - 1 and not visited[x + 1][y]:
                                 stack.append((x, y, x + 1, y))
