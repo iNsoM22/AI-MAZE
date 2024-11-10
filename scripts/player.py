@@ -37,24 +37,33 @@ class Player:
     def _is_move_valid(self, move):
         """Check if a move is allowed or not"""
         new_position = self._next_move(move)
-        is_inside = self._inside(*new_position)
+        # is_inside = self._inside(*new_position)
         is_not_reverse = new_position not in self.path
+        return is_not_reverse
 
-        is_not_wall = any(
-            (door[0], door[1]) == self.position and (door[2], door[3]) == move
-            for door in self.maze.doors
-        )
+    def _not_a_wall(self, move, pos=None):
+        pos = self.position if not pos else pos
+        not_a_wall = False
+        for route in self.maze.routes:
+            if route[:2] == pos and route[2:] == move:
+                not_a_wall = True
 
-        return is_inside and is_not_reverse and is_not_wall
+        if not not_a_wall:
+            # If the move is not a valid route and a wall
+            # then penalize the player
+            self.update_fitness(-1)
+
+        return not_a_wall
 
     def _onestep(self):
         moved = False
-        if len(self.inheritance):
+        if len(self.inheritance) > 0:
             inherited_move = self.inheritance.popleft()
 
-            if self._is_move_valid(inherited_move):
+            if self._is_move_valid(inherited_move) and self._not_a_wall(inherited_move):
                 self.position = inherited_move
                 self.path.append(self.position)
+                self.update_fitness(+1)
                 moved = True
 
         if not moved:
@@ -62,14 +71,24 @@ class Player:
                 filter(lambda x: self._is_move_valid(x), self.MOVES))
 
             if len(valid_moves) == 0:
-                print("NOw NO Moves Left")
                 self.canwalk = False
+                # Penalizes Heavily if it gets stuck
+                self.update_fitness(-10)
                 return
 
             move = random.choice(valid_moves)
             move_to = self._next_move(move)
-            self.position = move_to
-            self.path.append(move_to)
+            if self._is_move_valid(move) and self._not_a_wall(move_to):
+                self.position = move_to
+                self.path.append(move_to)
+
+                # self.update_fitness(+1)
+                # Should I add the Fitness Function to here
+                # So they will get fitness for each move they take.
+
+            if self.fitness <= MAX_PENALITY:
+                self.canwalk = False
+                return
 
         if self.position == END_POINT:
             self.canwalk = False
@@ -90,7 +109,4 @@ class Player:
             self.inheritance[mutation_point] = mutated_position
 
     def update_fitness(self, value):
-        self.fitness = value
-
-    def map_from_to(x, a, b, c, d):
-        return (x-a)/(b-a)*(d-c)+c
+        self.fitness += value

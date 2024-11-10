@@ -3,6 +3,7 @@ from .player import *
 from collections import deque
 from typing import Callable
 import random
+from time import sleep
 
 
 class MazeSolver:
@@ -11,12 +12,12 @@ class MazeSolver:
         self.curr_gen_best_players: list[Player] = []
         self.maze_conquered: bool = False
         self.best_player: Player = None
-        self.conquerers: list[Player] = []
 
         self.maze = maze
         self.curr_generation = 0
         self.fitness_function = fitness_function
         self.maximize_fitness = maximize_fitness
+        self.moving_players: list = []
 
     def simulate(self):
         while self.curr_generation < GENERATIONS:
@@ -32,14 +33,17 @@ class MazeSolver:
             if self.best_player:
                 print("Best Player Fitness:", self.best_player.fitness)
             print("-" * 10)
+            sleep(1)
             self._produce_offsprings()
 
     def _are_players_moving(self):
-        not_stuck = []
-        for player in self.population[-1]:
+        population = self.population[-1]
+        for idx in self.moving_players:
+            player = population[idx]
             player.play()
-            not_stuck.append(player.canwalk)
-        return any(not_stuck)
+            if not player.canwalk:
+                self.moving_players.remove(idx)
+        return len(self.moving_players) > 0
 
     def initialize_population(self):
         population = self._population_generator(initial=True)
@@ -67,21 +71,22 @@ class MazeSolver:
 
             if player.winner:
                 self.maze_conquered = True
-                self.conquerers.append(player)
 
     def _crossover(self, partner1: Player, partner2: Player):
         """Perform crossover between two players to create a child."""
         dominating_partner = max(partner1, partner2, key=lambda x: x.fitness)
 
-        index = int(0.8 * len(dominating_partner.path))
+        index = int(0.7 * len(dominating_partner.path))
         genes_1 = partner1.path[:index]
-        inherited_path = list(genes_1)
+        genes_2 = partner2.path[-index:]
+        inherited_path = list(genes_1 + genes_2)
 
         child = Player(self.maze, self.curr_generation + 1, inherited_path)
         return child
 
     def _population_generator(self, initial=False) -> list[Player]:
         population = []
+        self.moving_players.clear()
         for _ in range(POPULATION_SIZE):
             if not initial:
                 parentA = random.choice(
@@ -96,7 +101,7 @@ class MazeSolver:
 
             if child:
                 population.append(child)
-
+        self.moving_players.extend([*range(len(population))])
         return population
 
     def _produce_offsprings(self):
