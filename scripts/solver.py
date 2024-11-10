@@ -1,11 +1,12 @@
 from .maze import Maze
 from .player import *
 from collections import deque
+from typing import Callable
+import random
 
 
 class MazeSolver:
-
-    def __init__(self, maze: Maze):
+    def __init__(self, maze: Maze, fitness_function: Callable, maximize_fitness: bool = False):
         self.population: deque[list[Player]] = deque([])
         self.curr_gen_best_players: list[Player] = []
         self.maze_conquered: bool = False
@@ -14,6 +15,8 @@ class MazeSolver:
 
         self.maze = maze
         self.curr_generation = 0
+        self.fitness_function = fitness_function
+        self.maximize_fitness = maximize_fitness
 
     def simulate(self):
         while self.curr_generation < GENERATIONS:
@@ -22,10 +25,13 @@ class MazeSolver:
     def step(self):
         if self.curr_generation == 0:
             self.initialize_population()
-            self.curr_generation += 1
 
         if self.curr_generation < GENERATIONS and not self._are_players_moving():
+            self._selection()
             print("Current Generation:", self.curr_generation)
+            if self.best_player:
+                print("Best Player Fitness:", self.best_player.fitness)
+            print("-" * 10)
             self._produce_offsprings()
 
     def _are_players_moving(self):
@@ -38,75 +44,68 @@ class MazeSolver:
     def initialize_population(self):
         population = self._population_generator(initial=True)
         self.population.append(population)
-
-    def _euclidean_distance(self, agent_position: tuple[int, int]):
-        x = (agent_position[0] - END_POINT[0])**2
-        y = (agent_position[1] - END_POINT[1])**2
-        return 1/(x + y)**0.5
+        self.curr_generation += 1
 
     def _selection(self):
         """Selects the top half of the current players based on fitness."""
         self._generate_fitness()
         select = POPULATION_SIZE // 2
-        top_players = sorted(self.population[-1], key=lambda x: x.fitness)
+        top_players = sorted(
+            [*self.population[-1]], key=lambda x: x.fitness, reverse=self.maximize_fitness
+        )
         self.curr_gen_best_players = top_players[:select]
-        self.best_player = self.curr_gen_best_players[0]
+        if self.curr_gen_best_players:
+            current_best = self.curr_gen_best_players[0]
+            if not self.best_player or current_best.fitness > self.best_player.fitness:
+                self.best_player = current_best
 
     def _generate_fitness(self):
-        """Updates the Fitness of each player in the current generation"""
-        # Iterate over the players of latest generation
+        """Updates the Fitness of each player in the current generation."""
         for player in self.population[-1]:
-            player_position = player.position
-            distance = self._euclidean_distance(player_position)
-            player.update_fitness(distance)
+            f_value = self.fitness_function(player)
+            player.update_fitness(f_value)
 
             if player.winner:
                 self.maze_conquered = True
                 self.conquerers.append(player)
 
-    def _crossover(self, partner1, partner2):
+    def _crossover(self, partner1: Player, partner2: Player):
         """Perform crossover between two players to create a child."""
-        if not isinstance(partner1, Player) or not isinstance(partner2, Player):
-            return None
-
         dominating_partner = max(partner1, partner2, key=lambda x: x.fitness)
-        submissive_partner = min(partner1, partner2, key=lambda x: x.fitness)
 
-        genes_1 = int(0.7 * len(dominating_partner.path))
-        genes_2 = len(submissive_partner.path) - genes_1
-        inherited_path = dominating_partner.path[:genes_1] + \
-            submissive_partner.path[-genes_2:]
+        index = int(0.8 * len(dominating_partner.path))
+        genes_1 = partner1.path[:index]
+        inherited_path = list(genes_1)
 
         child = Player(self.maze, self.curr_generation + 1, inherited_path)
-
         return child
 
-    def _population_generator(self, initial=False):
+    def _population_generator(self, initial=False) -> list[Player]:
         population = []
         for _ in range(POPULATION_SIZE):
-
-            if not initial and len(self.curr_gen_best_players):
-                partner1, partner2 = random.choices(
-                    [*self.curr_gen_best_players, self.best_player], k=2)
-                child = self._crossover(partner1, partner2)
-
+            if not initial:
+                parentA = random.choice(
+                    [*self.curr_gen_best_players, self.best_player])
+                parentB = random.choice(
+                    [*self.curr_gen_best_players, self.best_player])
+                child = self._crossover(parentA, parentB)
                 if child:
                     child.mutate()
-
             else:
-                child = Player(self.maze, generation=self.curr_generation+1)
+                child = Player(self.maze, generation=self.curr_generation + 1)
 
-            population.append(child)
+            if child:
+                population.append(child)
 
         return population
 
     def _produce_offsprings(self):
-        """Produce Next Generation based on the selected candidates"""
-        self._selection()
+        """Produce Next Generation based on the selected candidates."""
         new_generation = self._population_generator()
-        self.curr_generation += 1
-        self.curr_gen_best_players = []
-        self.best_player = None
         self.population.append(new_generation)
-        if len(self.population) >= 2:
+
+        if len(self.population) > 2:
             self.population.popleft()
+
+        self.curr_generation += 1
+        self.curr_gen_best_players.clear()

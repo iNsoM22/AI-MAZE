@@ -10,8 +10,8 @@ class Player:
     def __init__(self, maze: Maze, generation: int, inherited_path: list = []):
         self.maze = maze
         self.generation = generation
-        self.color = (random.randrange(0, 255), random.randrange(
-            0, 255), random.randrange(0, 255))
+        self.color = (random.randint(0, 255), random.randint(
+            0, 255), random.randint(0, 255))
         self.path = []
         self.position = STARTING_POINT
         self.fitness = 0
@@ -20,25 +20,19 @@ class Player:
         self.inheritance = deque(inherited_path)
 
     def __str__(self):
-        return str(STARTING_POINT)+" Fitness: "+str(self.fitness)
+        return f"{STARTING_POINT} Fitness: {self.fitness}"
 
     def _inside(self, x, y):
-        """Checks if the Player is inside the Maze
-
-        Args:
-            y (int): Current Y Position of the Agent
-            x (int): Current X Position of the Agent
-
-        Returns:
-            bool: returns True if the player is in valid position
-        """
+        """Check if the Player is inside the Maze bounds"""
         return 0 <= x < self.maze.width and 0 <= y < self.maze.height
 
-    def _next_move(self, move) -> tuple[int, int]:
-        """Returns the next move of the Player"""
-        x, y = self.position
+    def _next_move(self, move, pos=None) -> tuple:
+        """Returns the next position based on current position and move"""
+        x, y = self.position if pos is None else pos
         dx, dy = move
-        return x + dx, y + dy
+        dx += x
+        dy += y
+        return (dx, dy)
 
     def _is_move_valid(self, move):
         """Check if a move is allowed or not"""
@@ -46,34 +40,34 @@ class Player:
         is_inside = self._inside(*new_position)
         is_not_reverse = new_position not in self.path
 
-        is_not_wall = False
-        for door in self.maze.doors:
-            if (door[0] == self.position[0] and door[1] == self.position[1] and door[2] == new_position[0] and door[3] == new_position[1]):
-                is_not_wall = True
+        is_not_wall = any(
+            (door[0], door[1]) == self.position and (door[2], door[3]) == move
+            for door in self.maze.doors
+        )
 
         return is_inside and is_not_reverse and is_not_wall
 
     def _onestep(self):
-        if len(self.inheritance) > 0:
+        moved = False
+        if len(self.inheritance):
             inherited_move = self.inheritance.popleft()
 
             if self._is_move_valid(inherited_move):
                 self.position = inherited_move
                 self.path.append(self.position)
+                moved = True
 
-            else:
-                self.canwalk = False
-
-        else:
-            valid_moves = [
-                move for move in self.MOVES if self._is_move_valid(move)
-            ]
+        if not moved:
+            valid_moves = list(
+                filter(lambda x: self._is_move_valid(x), self.MOVES))
 
             if len(valid_moves) == 0:
+                print("NOw NO Moves Left")
                 self.canwalk = False
                 return
 
-            move_to = self._next_move(random.choice(valid_moves))
+            move = random.choice(valid_moves)
+            move_to = self._next_move(move)
             self.position = move_to
             self.path.append(move_to)
 
@@ -82,19 +76,21 @@ class Player:
             self.winner = True
 
     def play(self):
-        """Start the Sequence of Player Moves"""
+        """Initiate player's movement sequence"""
         if self.canwalk:
             self._onestep()
 
     def mutate(self):
+        """Mutate part of the inherited path for diversity"""
         for _ in range(int(len(self.inheritance) * MUTATION_RATE)):
-            if len(self.path) > 2:
-                mutation_point = random.randint(2, len(self.inheritance) - 1)
-                random_move = random.choice(self.MOVES)
-                if self._is_move_valid(random_move):
-                    self.inheritance[mutation_point] = self._next_move(
-                        random_move)
+            mutation_point = random.randint(5, len(self.inheritance) - 1)
+            random_move = random.choice(self.MOVES)
+            position = self.inheritance[mutation_point - 1]
+            mutated_position = self._next_move(random_move, position)
+            self.inheritance[mutation_point] = mutated_position
 
-    def update_fitness(self, value: float):
-        if value >= 0:
-            self.fitness = value
+    def update_fitness(self, value):
+        self.fitness = value
+
+    def map_from_to(x, a, b, c, d):
+        return (x-a)/(b-a)*(d-c)+c

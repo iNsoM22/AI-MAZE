@@ -9,7 +9,7 @@ SEED = 42
 np.random.seed(SEED)
 
 
-def generator(rows, cols, save_maze=False, save_path=None):
+def generator(rows, cols, save_maze=False, save_path=None, include_end=False):
     start = time.time()
     maze = Maze((rows, cols))
     end = time.time()
@@ -17,6 +17,8 @@ def generator(rows, cols, save_maze=False, save_path=None):
     time_elapsed = end - start
 
     print(f"{rows}x{cols} Maze generated in {str(time_elapsed)}s.")
+    if include_end:
+        maze.routes.append((rows-1, cols-1, rows-1, cols))
 
     if save_maze:
         assert save_path != None

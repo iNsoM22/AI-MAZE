@@ -3,7 +3,7 @@ from .maze import Maze
 from pygame.locals import *
 import random
 import time
-from config import POPULATION_SIZE
+from config import POPULATION_SIZE, MAX_PENALITY
 
 
 class MazeVisualizer:
@@ -48,15 +48,16 @@ class MazeVisualizer:
 
     def _build_generation_history(self, solver, offset: float):
         """Build or update history of all players' paths across generations."""
-        self._generation_history = {
-            "generation": solver.curr_generation,
-        }
+        self._generation_history = {}
+        self.current_generation = solver.curr_generation
         for player_idx in range(POPULATION_SIZE):
             profile = {
                 "color": self._generate_random_color(),
                 "offset": player_idx * offset,
                 # Start from (0, 0) or any valid start position
                 "path": [(0, 0)],
+                "visible": True,
+                # "remove_after": 0
             }
 
             self._generation_history[player_idx] = profile
@@ -76,16 +77,18 @@ class MazeVisualizer:
 
             solver.step()
 
-            if solver.curr_generation != self._generation_history.get("generation"):
+            if solver.curr_generation != self.current_generation:
                 del self._generation_history
                 self._build_generation_history(solver, path_offset)
                 self.clear_paths()
                 time.sleep(0.5)
 
-            for idx, player in enumerate(solver.population[-1]):
-                player_profile = self._generation_history.get(idx)
-                player_new_move = player.position
-                self._draw_players(player_profile, player_new_move)
+            population = solver.population[-1]
+            for idx in self._generation_history.keys():
+                player = population[idx]
+                player_profile = self._generation_history.get(idx, None)
+                if player_profile:
+                    self._draw_players(player_profile, player, idx)
 
             pygame.display.update()
             self._clock.tick(self._fps)
@@ -128,16 +131,31 @@ class MazeVisualizer:
                                       self._center_offset_y + (y + 1) * self._cell_size),
                                      (self._center_offset_x + (x + 1) * self._cell_size, self._center_offset_y + (y + 1) * self._cell_size))
 
-    def _draw_players(self, profile, player_new_move):
+    def _draw_players(self, profile, player, idx):
         """Draw a player's path in the maze with offset for visual separation."""
         offset = profile.get(
             "offset")  # Offset to separate players' paths visually
         color = profile.get("color")  # Color of the player's path
         path = profile.get("path")  # Player's path
+        show_player = profile.get("visible")
 
-        # Add new position if it's not already in the path
-        if player_new_move not in path:
-            path.append(player_new_move)
+        if show_player and player.fitness <= MAX_PENALITY:
+            color = (255, 0, 0)
+            profile["color"] = color
+            profile["visible"] = False
+            # profile["remove_after"] = time.time()
+
+        if player.winner:
+            color = (0, 255, 20)
+            profile["color"] = color
+            profile["visible"] = True
+
+        if player.position not in path:
+            # if time.time() - profile["remove_after"] >= 10000 and not show_player:
+            #     self.kill_player(idx)
+            # return
+
+            path.append(player.position)
 
         # Draw each segment of the player's path
         for i in range(len(path) - 1):
@@ -153,7 +171,7 @@ class MazeVisualizer:
 
             # Draw the line segment of the path
             pygame.draw.line(self._screen, color,
-                             (start_x, start_y), (end_x, end_y), 3)
+                             (start_x, start_y), (end_x, end_y), 5)
 
     def clear_paths(self):
         """Clear all player paths to prepare for the next generation visualization."""
@@ -161,3 +179,9 @@ class MazeVisualizer:
         self._draw_maze_walls()
         pygame.display.update()
         self._clock.tick(self._fps)
+
+    def kill_player(self, player_idx):
+        try:
+            del self._generation_history[player_idx]
+        except:
+            pass
