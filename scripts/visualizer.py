@@ -7,7 +7,7 @@ from config import POPULATION_SIZE, MAX_PENALITY
 
 
 class MazeVisualizer:
-    def __init__(self, dimensions=(20, 20), screen_size=(800, 800), margin=70, fps=30, fps_adjustment=False):
+    def __init__(self, dimensions=(20, 20), screen_size=(800, 800), margin=70, fps=30, fps_adjustment=False, lines_width: int = 1):
         pygame.init()
 
         self._dimensions = dimensions
@@ -23,7 +23,7 @@ class MazeVisualizer:
         self._clock = pygame.time.Clock()
         self._running = True
         self.font = pygame.font.Font(None, 36)
-        self._maze_line_width = 3
+        self._maze_line_width = lines_width
         self.bg_image = pygame.image.load("resources/BG.jpg")
 
         self._cell_size = min(
@@ -181,9 +181,3 @@ class MazeVisualizer:
         self._draw_maze_walls()
         pygame.display.update()
         self._clock.tick(self._fps)
-
-    def kill_player(self, player_idx):
-        try:
-            del self._generation_history[player_idx]
-        except:
-            pass

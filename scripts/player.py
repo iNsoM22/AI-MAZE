@@ -70,7 +70,7 @@ class Player:
             valid_moves = list(
                 filter(lambda x: self._is_move_valid(x), self.MOVES))
 
-            if len(valid_moves) == 0:
+            if len(valid_moves) == 0 and not self.winner:
                 self.canwalk = False
                 # Penalizes Heavily if it gets stuck
                 self.update_fitness(-10)
